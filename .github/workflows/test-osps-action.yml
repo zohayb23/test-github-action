@@ -27,7 +27,7 @@ on:
       log_level:
         description: 'Log level'
         required: false
-        default: 'info'
+        default: 'debug'
         type: choice
         options:
           - 'info'
@@ -73,8 +73,12 @@ jobs:
         run: |
           echo "✅ OSPS Security Assessment completed!"
           echo "📊 Results saved to: evaluation_results/"
+          echo ""
+          echo "🔍 Checking current directory structure:"
+          ls -la
+          echo ""
+          echo "🔍 Checking for evaluation_results directory:"
           if [ -d "evaluation_results" ]; then
-            echo ""
             echo "📁 Files generated:"
             ls -la evaluation_results/
             echo ""
@@ -87,4 +91,8 @@ jobs:
               fi
               echo "---"
             done
+          else
+            echo "❌ evaluation_results directory not found!"
+            echo "🔍 Looking for any files that might contain results:"
+            find . -name "*result*" -o -name "*assessment*" -o -name "*.yaml" -o -name "*.json" | head -10
           fi

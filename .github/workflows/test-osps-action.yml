@@ -62,34 +62,28 @@ jobs:
           log-level: ${{ inputs.log_level }}
           output-format: ${{ inputs.output_format }}
 
-      - name: Fix permissions for evaluation_results
+      - name: Fix permissions and create test SARIF file
         shell: bash
         if: always()
         run: |
           echo "🔧 Fixing permissions for evaluation_results directory..."
+
+          # Fix ownership and permissions
           if [ -d "evaluation_results" ]; then
-            # Change ownership and permissions so we can write to it
-            # Docker container runs as root, so we need to fix ownership
-            sudo chown -R $(whoami):$(whoami) evaluation_results 2>/dev/null || sudo chown -R runner:runner evaluation_results
-            chmod -R 755 evaluation_results
+            echo "Directory exists, fixing permissions..."
+            sudo chown -R runner:runner evaluation_results || sudo chown -R $(id -u):$(id -g) evaluation_results
+            sudo chmod -R 775 evaluation_results || chmod -R 775 evaluation_results
             echo "✅ Permissions fixed"
           else
-            echo "⚠️ evaluation_results directory does not exist, creating it..."
+            echo "Creating evaluation_results directory..."
             mkdir -p evaluation_results
+            chmod 775 evaluation_results
           fi
 
-      - name: Create test SARIF file for testing
-        shell: bash
-        if: always()
-        run: |
           echo "🧪 Creating test SARIF file to test upload functionality..."
-          mkdir -p evaluation_results
-          
-          # Ensure directory is writable
-          chmod 755 evaluation_results
-          
-          # Create a minimal valid SARIF file for testing
-          cat > evaluation_results/test-results.sarif << 'EOF'
+
+          # Create SARIF file in a temp location first, then move it
+          cat > /tmp/test-results.sarif << 'EOF'
           {
             "version": "2.1.0",
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -124,15 +118,24 @@ jobs:
             ]
           }
           EOF
-          
-          echo "✅ Test SARIF file created at evaluation_results/test-results.sarif"
+
+          # Move SARIF file to evaluation_results directory
+          if [ -f "/tmp/test-results.sarif" ]; then
+            cp /tmp/test-results.sarif evaluation_results/test-results.sarif
+            chmod 644 evaluation_results/test-results.sarif
+            echo "✅ Test SARIF file created at evaluation_results/test-results.sarif"
+            ls -la evaluation_results/test-results.sarif
+          else
+            echo "❌ Failed to create SARIF file in /tmp"
+            exit 1
+          fi
 
       - name: Test SARIF Upload to Security Tab
         shell: bash
         run: |
           echo "🔍 Testing SARIF upload functionality..."
           SARIF_FILE=$(find evaluation_results -name "*.sarif" -type f 2>/dev/null | head -1)
-          
+
           if [ -n "$SARIF_FILE" ] && [ -f "$SARIF_FILE" ]; then
             echo "✅ SARIF file found: $SARIF_FILE"
             echo "📄 SARIF file contents (first 20 lines):"

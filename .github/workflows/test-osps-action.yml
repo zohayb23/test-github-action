@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run OSPS Security Assessment
-        uses: zohayb23/pvtr-github-repo-action@main
+        uses: revanite-io/pvtr-github-repo-action@main
         with:
           owner: ${{ inputs.target_owner }}
           repo: ${{ inputs.target_repo }}
@@ -61,6 +61,75 @@ jobs:
           maturity-level: ${{ inputs.maturity_level }}
           log-level: ${{ inputs.log_level }}
           output-format: ${{ inputs.output_format }}
+          upload-sarif: 'false'
+
+      - name: Create test SARIF file for testing
+        shell: bash
+        if: always()
+        run: |
+          echo "🧪 Creating test SARIF file to test upload functionality..."
+          mkdir -p evaluation_results
+
+          # Create a minimal valid SARIF file for testing
+          cat > evaluation_results/test-results.sarif << 'EOF'
+          {
+            "version": "2.1.0",
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "OSPS Security Assessment",
+                    "version": "1.0.0",
+                    "informationUri": "https://github.com/revanite-io/pvtr-github-repo-action"
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "OSPS-AC-03.01",
+                    "message": {
+                      "text": "Branch protection rule does not restrict pushes or require approving reviews"
+                    },
+                    "level": "warning",
+                    "locations": [
+                      {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "repository"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+          echo "✅ Test SARIF file created at evaluation_results/test-results.sarif"
+
+      - name: Test SARIF Upload to Security Tab
+        shell: bash
+        run: |
+          echo "🔍 Testing SARIF upload functionality..."
+          SARIF_FILE=$(find evaluation_results -name "*.sarif" -type f 2>/dev/null | head -1)
+
+          if [ -n "$SARIF_FILE" ] && [ -f "$SARIF_FILE" ]; then
+            echo "✅ SARIF file found: $SARIF_FILE"
+            echo "📄 SARIF file contents:"
+            head -20 "$SARIF_FILE"
+          else
+            echo "❌ No SARIF file found for testing"
+            exit 1
+          fi
+
+      - name: Upload SARIF to GitHub Security Tab (Test)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: evaluation_results/test-results.sarif
+          wait-for-processing: true
+        continue-on-error: true
 
       - name: Upload Assessment Results
         uses: actions/upload-artifact@v4

@@ -46,7 +46,7 @@ jobs:
   test-osps-action:
     runs-on: ubuntu-latest
     name: Test OSPS Security Assessment
-    
+
     permissions:
       contents: read
       security-events: write
@@ -66,6 +66,7 @@ jobs:
           maturity-level: ${{ inputs.maturity_level }}
           log-level: ${{ inputs.log_level }}
           output-format: ${{ inputs.output_format }}
+          upload-sarif: 'true'
 
       - name: Fix permissions and create test SARIF file
         shell: bash

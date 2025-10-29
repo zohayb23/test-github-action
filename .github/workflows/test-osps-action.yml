@@ -1,0 +1,90 @@
+name: Test OSPS Security Assessment Action
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_owner:
+        description: 'Target repository owner (organization or user)'
+        required: true
+        default: 'zohayb23'
+      target_repo:
+        description: 'Target repository name to assess'
+        required: true
+        default: 'test-github-action'
+      catalog:
+        description: 'OSPS catalog to assess against'
+        required: false
+        default: 'OSPS_B'
+      maturity_level:
+        description: 'Maturity level to assess'
+        required: false
+        default: 'Maturity Level 1'
+        type: choice
+        options:
+          - 'Maturity Level 1'
+          - 'Maturity Level 2'
+          - 'Maturity Level 3'
+      log_level:
+        description: 'Log level'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - 'info'
+          - 'debug'
+          - 'trace'
+      output_format:
+        description: 'Output format'
+        required: false
+        default: 'yaml'
+        type: choice
+        options:
+          - 'yaml'
+          - 'json'
+
+jobs:
+  test-osps-action:
+    runs-on: ubuntu-latest
+    name: Test OSPS Security Assessment
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSPS Security Assessment
+        uses: ../pvtr-github-repo-action
+        with:
+          owner: ${{ inputs.target_owner }}
+          repo: ${{ inputs.target_repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          catalog: ${{ inputs.catalog }}
+          maturity-level: ${{ inputs.maturity_level }}
+          log-level: ${{ inputs.log_level }}
+          output-format: ${{ inputs.output_format }}
+
+      - name: Upload Assessment Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: osps-assessment-results-${{ github.run_number }}
+          path: evaluation_results/
+          retention-days: 30
+
+      - name: Display Results Summary
+        run: |
+          echo "✅ OSPS Security Assessment completed!"
+          echo "📊 Results saved to: evaluation_results/"
+          if [ -d "evaluation_results" ]; then
+            echo ""
+            echo "📁 Files generated:"
+            ls -la evaluation_results/
+            echo ""
+            echo "📄 Summary of results:"
+            find evaluation_results -name "*.yaml" -o -name "*.json" | head -5 | while read file; do
+              echo "File: $file"
+              if [[ "$file" == *.yaml ]]; then
+                echo "First few lines:"
+                head -10 "$file"
+              fi
+              echo "---"
+            done
+          fi

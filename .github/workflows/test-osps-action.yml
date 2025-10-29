@@ -61,7 +61,22 @@ jobs:
           maturity-level: ${{ inputs.maturity_level }}
           log-level: ${{ inputs.log_level }}
           output-format: ${{ inputs.output_format }}
-          upload-sarif: 'false'
+
+      - name: Fix permissions for evaluation_results
+        shell: bash
+        if: always()
+        run: |
+          echo "🔧 Fixing permissions for evaluation_results directory..."
+          if [ -d "evaluation_results" ]; then
+            # Change ownership and permissions so we can write to it
+            # Docker container runs as root, so we need to fix ownership
+            sudo chown -R $(whoami):$(whoami) evaluation_results 2>/dev/null || sudo chown -R runner:runner evaluation_results
+            chmod -R 755 evaluation_results
+            echo "✅ Permissions fixed"
+          else
+            echo "⚠️ evaluation_results directory does not exist, creating it..."
+            mkdir -p evaluation_results
+          fi
 
       - name: Create test SARIF file for testing
         shell: bash
@@ -69,7 +84,10 @@ jobs:
         run: |
           echo "🧪 Creating test SARIF file to test upload functionality..."
           mkdir -p evaluation_results
-
+          
+          # Ensure directory is writable
+          chmod 755 evaluation_results
+          
           # Create a minimal valid SARIF file for testing
           cat > evaluation_results/test-results.sarif << 'EOF'
           {
@@ -106,7 +124,7 @@ jobs:
             ]
           }
           EOF
-
+          
           echo "✅ Test SARIF file created at evaluation_results/test-results.sarif"
 
       - name: Test SARIF Upload to Security Tab
@@ -114,10 +132,10 @@ jobs:
         run: |
           echo "🔍 Testing SARIF upload functionality..."
           SARIF_FILE=$(find evaluation_results -name "*.sarif" -type f 2>/dev/null | head -1)
-
+          
           if [ -n "$SARIF_FILE" ] && [ -f "$SARIF_FILE" ]; then
             echo "✅ SARIF file found: $SARIF_FILE"
-            echo "📄 SARIF file contents:"
+            echo "📄 SARIF file contents (first 20 lines):"
             head -20 "$SARIF_FILE"
           else
             echo "❌ No SARIF file found for testing"

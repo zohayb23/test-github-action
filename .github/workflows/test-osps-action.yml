@@ -46,6 +46,11 @@ jobs:
   test-osps-action:
     runs-on: ubuntu-latest
     name: Test OSPS Security Assessment
+    
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
 
     steps:
       - name: Checkout repository

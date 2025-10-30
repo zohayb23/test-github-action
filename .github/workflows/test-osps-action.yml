@@ -14,7 +14,7 @@ on:
       catalog:
         description: 'OSPS catalog to assess against'
         required: false
-        default: 'OSPS_B'
+        default: 'osps-baseline'
       maturity_level:
         description: 'Maturity level to assess'
         required: false

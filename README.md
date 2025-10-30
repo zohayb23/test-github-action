@@ -26,6 +26,7 @@ This repo serves as a testbed for the OSPS (Open Source Project Security) Baseli
 ## Expected Results
 
 The action will:
+
 - Analyze the target repository against OSPS Baseline controls
 - Generate security assessment results
 - Save results as artifacts in the workflow run

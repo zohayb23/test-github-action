@@ -56,15 +56,81 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run OSPS Security Assessment
-        uses: revanite-io/pvtr-github-repo-action@main
+      - name: Checkout pvtr-github-repo test branch
+        uses: actions/checkout@v4
         with:
-          owner: ${{ inputs.target_owner }}
-          repo: ${{ inputs.target_repo }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          catalog: ${{ inputs.catalog }}
-          output-format: ${{ inputs.output_format }}
-          upload-sarif: 'true'
+          repository: zohayb23/pvtr-github-repo
+          ref: test/sarif-tool-name-fix
+          path: pvtr-github-repo
+
+      - name: Build test Docker image
+        working-directory: pvtr-github-repo
+        run: |
+          docker build -t pvtr-github-repo:test-sarif-fix .
+
+      - name: Run OSPS Security Assessment (test)
+        run: |
+          mkdir -p evaluation_results
+          chmod 777 evaluation_results
+          
+          cat > /tmp/pvtr-config.yml << EOF
+          loglevel: "info"
+          write-directory: evaluation_results
+          write: true
+          output: "sarif"
+          services:
+            pvtr:
+              plugin: github-repo
+              policy:
+                catalogs:
+                  - "${{ inputs.catalog }}"
+                applicability:
+                  - "Maturity Level 1"
+              vars:
+                owner: "${{ inputs.target_owner }}"
+                repo: "${{ inputs.target_repo }}"
+                token: "${{ secrets.GITHUB_TOKEN }}"
+          EOF
+          
+          docker run --rm \
+            -v /tmp/pvtr-config.yml:/.privateer/config.yml \
+            -v ${{ github.workspace }}/evaluation_results:/.privateer/bin/evaluation_results \
+            pvtr-github-repo:test-sarif-fix
+
+      - name: Prepare SARIF file for upload
+        id: sarif
+        continue-on-error: true
+        run: |
+          SARIF_FILE=$(find evaluation_results -name "*.sarif" -type f 2>/dev/null | head -1)
+          if [ -n "$SARIF_FILE" ] && [ -f "$SARIF_FILE" ]; then
+            # Validate that the SARIF file contains at least one result
+            RESULT_COUNT=$(jq '[.runs[]?.results[]?] | length' "$SARIF_FILE" 2>/dev/null || echo "0")
+            TOOL_NAME=$(jq -r '.runs[0].tool.driver.name // "empty"' "$SARIF_FILE" 2>/dev/null || echo "empty")
+            echo "📊 SARIF Analysis:"
+            echo "  - Results: $RESULT_COUNT"
+            echo "  - Tool Name: $TOOL_NAME"
+            if [ "$RESULT_COUNT" -gt 0 ]; then
+              echo "✅ SARIF file contains $RESULT_COUNT result(s)"
+              echo "sarif_file=$SARIF_FILE" >> $GITHUB_OUTPUT
+              echo "has_results=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️  SARIF file exists but contains no results"
+              echo "sarif_file=" >> $GITHUB_OUTPUT
+              echo "has_results=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️  No SARIF file found"
+            echo "sarif_file=" >> $GITHUB_OUTPUT
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload SARIF to GitHub Security tab
+        if: steps.sarif.outputs.sarif_file != '' && steps.sarif.outputs.has_results == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.sarif.outputs.sarif_file }}
+          wait-for-processing: true
+        continue-on-error: true
 
       - name: Fix permissions for evaluation_results
         shell: bash

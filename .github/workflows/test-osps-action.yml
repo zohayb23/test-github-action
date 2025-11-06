@@ -63,8 +63,6 @@ jobs:
           repo: ${{ inputs.target_repo }}
           token: ${{ secrets.GITHUB_TOKEN }}
           catalog: ${{ inputs.catalog }}
-          maturity-level: ${{ inputs.maturity_level }}
-          log-level: ${{ inputs.log_level }}
           output-format: ${{ inputs.output_format }}
           upload-sarif: 'true'
 

@@ -66,7 +66,18 @@ jobs:
       - name: Build test Docker image
         working-directory: pvtr-github-repo
         run: |
-          docker build -t pvtr-github-repo:test-sarif-fix .
+          echo "📦 Building Docker image with SARIF fix..."
+          echo "🔍 Checking go.mod replace directive:"
+          grep -A 1 "replace.*privateer-sdk" go.mod || echo "⚠️ Replace directive not found"
+          echo ""
+          echo "🔨 Building Docker image..."
+          docker build -t pvtr-github-repo:test-sarif-fix . || {
+            echo "❌ Docker build failed!"
+            echo "📋 go.mod contents:"
+            cat go.mod
+            exit 1
+          }
+          echo "✅ Docker image built successfully"
 
       - name: Run OSPS Security Assessment (test)
         run: |
